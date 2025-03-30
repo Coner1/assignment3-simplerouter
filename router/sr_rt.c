@@ -15,6 +15,22 @@
 
 struct sr_rt* longest_prefix_matching(struct sr_instance* sr, uint32_t ip) {
 	/* TODO: Find out which entry in the routing table has the longest prefix match with the destination IP address. */
+    struct sr_rt* rt_walker = sr->routing_table;
+    struct sr_rt* best_match = NULL;
+    uint32_t longest_mask = 0;
+
+    while (rt_walker) {
+        uint32_t masked_ip = ip & rt_walker->mask.s_addr;
+        uint32_t masked_dest = rt_walker->dest.s_addr & rt_walker->mask.s_addr;
+        if (masked_ip == masked_dest) {
+            if (ntohl(rt_walker->mask.s_addr) >= longest_mask) {
+                longest_mask = ntohl(rt_walker->mask.s_addr);
+                best_match = rt_walker;
+            }
+        }
+        rt_walker = rt_walker->next;
+    }
+    return best_match;
 }
 
 
