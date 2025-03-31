@@ -6,10 +6,32 @@
 
 int validate_ip(uint8_t* packet, unsigned int len) {
 	/* TODO: Sanity check IP packet */
+  if (len < sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t)) return -1;
+
+  sr_ip_hdr_t* ip_hdr = (sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+  if (ip_hdr->ip_v != 4) return -1;
+  if (ip_hdr->ip_hl < 5) return -1;
+  if (ntohs(ip_hdr->ip_len) < ip_hdr->ip_hl * 4 || ntohs(ip_hdr->ip_len) > len - sizeof(sr_ethernet_hdr_t)) return -1;
+
+  uint16_t computed_sum = cksum(ip_hdr, ip_hdr->ip_hl * 4);
+  if (computed_sum != ip_hdr->ip_sum) return -1;
+
+  return 0;
 }
 
 int validate_icmp(uint8_t* packet, unsigned int len) {
 	/* TODO: Sanity check ICMP packet */
+  if (len < sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t)) return -1;
+
+  sr_ip_hdr_t* ip_hdr = (sr_ip_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t));
+  sr_icmp_hdr_t* icmp_hdr = (sr_icmp_hdr_t*)(packet + sizeof(sr_ethernet_hdr_t) + (ip_hdr->ip_hl * 4));
+  unsigned int icmp_len = ntohs(ip_hdr->ip_len) - (ip_hdr->ip_hl * 4);
+  if (icmp_len < sizeof(sr_icmp_hdr_t)) return -1;
+
+  uint16_t computed_sum = cksum(icmp_hdr, icmp_len);
+  if (computed_sum != icmp_hdr->icmp_sum) return -1;
+
+  return 0;
 }
 
 

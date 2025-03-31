@@ -14,12 +14,61 @@
 void handle_arpreq(struct sr_instance* sr, struct sr_arpreq* request) {
 	/* TODO: This function must send ARP requests if necessary. 
 	 * Refer to sr_arpcache.h for explanation and pseudocode */
+    time_t now = time(NULL);
+    if (difftime(now, req->sent) > 1.0) {
+        if (req->times_sent >= 5) {
+            struct sr_packet* pkt = req->packets;
+            while (pkt) {
+                send_icmp_msg(sr, pkt->buf, pkt->len, icmp_type_dest_unreachable, icmp_dest_unreachable_host);
+                pkt = pkt->next;
+            }
+            sr_arpreq_destroy(&sr->cache, req);
+        } else {
+            // Send ARP request
+            unsigned int arp_len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
+            uint8_t* arp_packet = malloc(arp_len);
+            sr_ethernet_hdr_t* arp_eth_hdr = (sr_ethernet_hdr_t*)arp_packet;
+            sr_arp_hdr_t* arp_hdr = (sr_arp_hdr_t*)(arp_packet + sizeof(sr_ethernet_hdr_t));
+
+            struct sr_if* iface = sr_get_interface(sr, req->packets->iface);
+            memset(arp_eth_hdr->ether_dhost, 0xFF, ETHER_ADDR_LEN); // Broadcast
+            memcpy(arp_eth_hdr->ether_shost, iface->addr, ETHER_ADDR_LEN);
+            arp_eth_hdr->ether_type = htons(ethertype_arp);
+
+            arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
+            arp_hdr->ar_pro = htons(ethertype_ip);
+            arp_hdr->ar_hln = ETHER_ADDR_LEN;
+            arp_hdr->ar_pln = 4;
+            arp_hdr->ar_op = htons(arp_op_request);
+            memcpy(arp_hdr->ar_sha, iface->addr, ETHER_ADDR_LEN);
+            arp_hdr->ar_sip = iface->ip;
+            memset(arp_hdr->ar_tha, 0, ETHER_ADDR_LEN);
+            arp_hdr->ar_tip = req->ip;
+
+            sr_send_packet(sr, arp_packet, arp_len, iface->name);
+            free(arp_packet);
+
+            req->sent = now;
+            req->times_sent++;
+        }
+    }
 }
 
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
 	/* TODO: This function is called once every second. 
 	 * For each request sent out, keep checking whether to resend the request or destroy the arp request.
 	 * Refer to sr_arpcache.h for explanation and pseudocode. */
+    struct sr_arpreq* req = sr->cache.requests;
+    struct sr_arpreq* prev = NULL;
+    while (req) {
+        struct sr_arpreq* next = req->next;
+        handle_arpreq(sr, req);
+        // If req was destroyed, the list is updated by handle_arpreq; otherwise, move prev
+        if (sr->cache.requests == req || (prev && prev->next == req)) {
+            prev = req;
+        }
+        req = next;
+    }
 }
 
 
