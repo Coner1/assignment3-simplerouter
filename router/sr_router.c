@@ -189,22 +189,21 @@ void sr_handlepacket(struct sr_instance* sr,
   assert(buf);
   assert(iface);
 
-//  printf("*** -> Received packet of length %d \n",len);
+  printf("*** -> Received packet of length %d \n",len);
 
   /* TODO: Process and forward the packet if needed */
-  printf("*** -> Received packet of length %d on interface %s\n", len, iface);
 
-    // Get Ethernet header
+   /* Get Ethernet header */
     sr_ethernet_hdr_t* eth_hdr = (sr_ethernet_hdr_t*)buf;
     uint16_t eth_type = ntohs(eth_hdr->ether_type);
 
-    // Handle ARP packets
+    /*  Handle ARP packets*/
     if (eth_type == ethertype_arp) {
         sr_arp_hdr_t* arp_hdr = (sr_arp_hdr_t*)(buf + sizeof(sr_ethernet_hdr_t));
         if (ntohs(arp_hdr->ar_op) == arp_op_request) {
             struct sr_if* if_entry = sr_get_interface(sr, iface);
-            if (arp_hdr->ar_tip == if_entry->ip) { // ARP request for this interface
-                // Construct ARP reply
+            if (arp_hdr->ar_tip == if_entry->ip) { /* ARP request for this interface*/
+                /* Construct ARP reply */
                 uint8_t* reply = malloc(len);
                 memcpy(reply, buf, len);
                 sr_ethernet_hdr_t* reply_eth_hdr = (sr_ethernet_hdr_t*)reply;
@@ -239,13 +238,13 @@ void sr_handlepacket(struct sr_instance* sr,
         return;
     }
 
-    // Handle IP packets
+    /* Handle IP packets*/
     if (eth_type == ethertype_ip) {
         sr_ip_hdr_t* ip_hdr = (sr_ip_hdr_t*)(buf + sizeof(sr_ethernet_hdr_t));
-        if (validate_ip(buf, len) != 0) return; // Drop invalid IP packets
+        if (validate_ip(buf, len) != 0) return; /* Drop invalid IP packets*/
 
         struct sr_if* if_entry = sr_get_interface(sr, iface);
-        // Check if packet is destined for router
+        /* Check if packet is destined for router*/
         struct sr_if* dest_if = sr->if_list;
         int for_router = 0;
         while (dest_if) {
@@ -268,7 +267,7 @@ void sr_handlepacket(struct sr_instance* sr,
             return;
         }
 
-        // Forward packet
+        /* Forward packet*/
         if (ip_hdr->ip_ttl <= 1) {
             send_icmp_msg(sr, buf, len, icmp_type_time_exceeded, 0);
             return;
@@ -283,7 +282,7 @@ void sr_handlepacket(struct sr_instance* sr,
             return;
         }
 
-        struct sr_arpentry* arp_entry = sr_arpcache_lookup(&sr->cache, rt_entry->gw);
+        struct sr_arpentry* arp_entry = sr_arpcache_lookup(&sr->cache, rt_entry->gw.s_addr);
         struct sr_if* out_if = sr_get_interface(sr, rt_entry->interface);
         if (arp_entry) {
             memcpy(eth_hdr->ether_dhost, arp_entry->mac, ETHER_ADDR_LEN);
@@ -291,7 +290,7 @@ void sr_handlepacket(struct sr_instance* sr,
             sr_send_packet(sr, buf, len, rt_entry->interface);
             free(arp_entry);
         } else {
-            sr_arpcache_queuereq(&sr->cache, rt_entry->gw, buf, len, rt_entry->interface);
+            sr_arpcache_queuereq(&sr->cache, rt_entry->gw.s_addr, buf, len, rt_entry->interface);
         }
     }
 }/* end sr_ForwardPacket */
