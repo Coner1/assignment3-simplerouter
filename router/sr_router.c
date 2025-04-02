@@ -243,7 +243,7 @@ void sr_handlepacket(struct sr_instance* sr,
         sr_ip_hdr_t* ip_hdr = (sr_ip_hdr_t*)(buf + sizeof(sr_ethernet_hdr_t));
         if (validate_ip(buf, len) != 0) return; /* Drop invalid IP packets*/
 
-        struct sr_if* if_entry = sr_get_interface(sr, iface);
+        /*struct sr_if* if_entry = sr_get_interface(sr, iface);*/
         /* Check if packet is destined for router*/
         struct sr_if* dest_if = sr->if_list;
         int for_router = 0;
